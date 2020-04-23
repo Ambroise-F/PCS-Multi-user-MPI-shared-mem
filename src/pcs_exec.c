@@ -378,7 +378,7 @@ int main(int argc,char * argv[])
 			//compute Q
 			mpz_init_set(keys[int_i],key);
 			double_and_add(&Q[int_i], P, key, E);
-			if(!world_rank)gmp_printf("keys[%d] = %Zd\n",int_i,keys[int_i]);
+			//if(!world_rank)gmp_printf("keys[%d] = %Zd\n",int_i,keys[int_i]);
 			//MPI_Barrier(MPI_COMM_WORLD);
 		}
 		dbg_init_xtrue(keys);
@@ -574,14 +574,14 @@ int main(int argc,char * argv[])
 		/* Test different structures */
 		if(!world_rank)
 		{
-			// TEMPO printf("*** Test %d ***\n", test_i + 1);
+			printf("*** Test %d ***\n", test_i + 1);
 		}
 		//for(struct_i = 0; struct_i < __NB_STRUCTURES__; struct_i++)
 		for (struct_i = 0; struct_i < __NB_STRUCTURES__; struct_i++) // hash test
 		{
 			if(structs[struct_i] == 1)
 			{
-				// TEMPO if (!world_rank) printf("\t**Structure %s\n", struct_i_str[struct_i]);
+				if (!world_rank) printf("\t**Structure %s\n", struct_i_str[struct_i]);
 				pcs_mu_init(P, Q, E, large_prime, A, nb_bits, trailling_bits, struct_i, nb_threads, level, world_size, world_rank);
 
 				//pcs_mu_run(x, nb_threads, nb_collisions);
