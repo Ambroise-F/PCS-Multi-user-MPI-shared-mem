@@ -188,11 +188,17 @@ int main(int argc,char * argv[])
 
 	// MPI INIT
 	int required = MPI_THREAD_MULTIPLE;
+	required = MPI_THREAD_SERIALIZED;
 	int provided = 0;
 	MPI_Init_thread(&argc,&argv,required,&provided);
+	/*
 	if (provided!=required)
-		exit(-1);
-
+	{
+		if(!world_rank)
+			printf("MPI_THREAD_MULTIPLE not available\n");
+		//exit(-1);
+	}
+	*/
 	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
@@ -381,7 +387,7 @@ int main(int argc,char * argv[])
 			//if(!world_rank)gmp_printf("keys[%d] = %Zd\n",int_i,keys[int_i]);
 			//MPI_Barrier(MPI_COMM_WORLD);
 		}
-		dbg_init_xtrue(keys);
+		//dbg_init_xtrue(keys);
 		/******* BEGIN: Setting up environment for experiment running and statistics *******/
 
 		/*** Update possible values of argument f (field/nb_bits) in experiments ***/
@@ -601,6 +607,7 @@ int main(int argc,char * argv[])
 					for (key_i = 0; key_i<__NB_USERS__; key_i++)
 					{
 						ok = 1;
+						//gmp_printf("xs%d = %Zd\n",key_i,xs[key_i]);
 						if(mpz_cmp(xs[key_i], keys[key_i])==0)
 						{
 							//printf("key n°%d is OK\n",key_i);

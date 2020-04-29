@@ -7,14 +7,11 @@
 
 //#define __NB_USERS__ ((1<<16)-4)
 //#define __NB_USERS__ ((1<<8)-4)
-#define __NB_USERS__ 5
+#define __NB_USERS__ 1
 
 
 #define SEED_ (time(NULL))
-//#define SEED_ 0x5ea1764c
-//#define SEED_ (time(NULL)^0xcafebabe)
-//#define SEED_ 0x9469bfc9
-//#define SEED_ 0x94685a71
+
 
 
 long int SEED;

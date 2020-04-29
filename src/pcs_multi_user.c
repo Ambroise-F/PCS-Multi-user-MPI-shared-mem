@@ -24,7 +24,7 @@
 #define USER_T uint16_t
 
 // debug macros
-#define DBG 1
+#define DBG 0
 #define FF fflush(stdout)
 #define qp(a) printf("%d",a);fflush(stdout)
 
@@ -34,7 +34,7 @@ point_t Q[__NB_USERS__]; // One Q per user
 mpz_t n;
 mpz_t *A;
 mpz_t *B;
-mpz_t X_res[__NB_USERS__]; // One x per user
+mpz_t x_res_local[__NB_USERS__]; // One x per user
 point_t M[__NB_ENSEMBLES__]; // precomputed a*P values
 uint8_t trailling_bits;
 uint8_t nb_bits;
@@ -49,7 +49,7 @@ uint16_t* machine_map; // machine map (key is a prefix of size nb_bits_max and v
 uint16_t prefix_local; // local machine prefix
 uint8_t prefix_size_local; // local machine prefix size
 
-mpz_t xtrue[__NB_USERS__];
+//mpz_t xtrue[__NB_USERS__];
 
 
 void init_prefix_maps(int nb_machines)
@@ -230,7 +230,7 @@ gmp_printf("(a1,b1,a2,b2,n,x) = (%Zd,%Zd,%Zd,%Zd,%Zd,",a1,b1,a2,b2,n);
 }
 else
 {
-gmp_printf("(a1,b1,a2,b2,n,x2,x) = (%Zd,%Zd,%Zd,%Zd,%Zd,%Zd,",a1,b1,a2,b2,n,X_res[userid2]);
+gmp_printf("(a1,b1,a2,b2,n,x2,x) = (%Zd,%Zd,%Zd,%Zd,%Zd,%Zd,",a1,b1,a2,b2,n,x_res_local[userid2]);
 }
 */
 
@@ -255,15 +255,16 @@ else if(userid1!=userid2) //two different Qs, so collision - userid2 has to be k
     mpz_neg(b2, b2);
     mpz_mmod(b2, b2, n);
   }
-  compute_x_2users(x, a1, a2, b1, b2, X_res[userid2], n);
+  compute_x_2users(x, a1, a2, b1, b2, x_res_local[userid2], n);
   retval = 1;
 }
-
+/*
 if (mpz_cmp(xtrue[userid1],x))
 {
   printf("erreur : \n");
-  gmp_printf("(a1,b1,a2,b2,n,x1,x2,xT) = (%Zd,%Zd,%Zd,%Zd,%Zd,%Zd,%Zd,%Zd)\n",a1,b1,a2,b2,n,x,X_res[userid2],xtrue[userid1]);
+  gmp_printf("(a1,b1,a2,b2,n,x1,x2,xT) = (%Zd,%Zd,%Zd,%Zd,%Zd,%Zd,%Zd,%Zd)\n",a1,b1,a2,b2,n,x,x_res_local[userid2],xtrue[userid1]);
 }
+*/
 
 
 
@@ -458,7 +459,6 @@ void pcs_mu_init(point_t  P_init,
 
   uint8_t i; //  __NB_ENSEMBLES__
   int j; // __NB_USERS__
-  uint16_t user;
   world_size = world_size_init;
   world_rank = world_rank_init;
   init_prefix_maps(world_size);
@@ -493,7 +493,7 @@ void pcs_mu_init(point_t  P_init,
     mpz_set(Q[j].x,Q_init[j].x);
     mpz_set(Q[j].y,Q_init[j].y);
     mpz_set(Q[j].z,Q_init[j].z);
-    user = (uint16_t) j;
+    mpz_init(x_res_local[j]);
 
   }
   for(i=0; i<__NB_ENSEMBLES__; i++) // has to be after Q inits at index j since it is needed for lin_comb_mu
@@ -504,7 +504,8 @@ void pcs_mu_init(point_t  P_init,
 
   trailling_bits = trailling_bits_init;
   nb_bits = nb_bits_init;
-  struct_init_mu(type_struct, n, trailling_bits, nb_bits, nb_threads, level); // TODO : mu adaptation : done?
+  struct_init_mu(type_struct, n, trailling_bits + prefix_size_map[world_rank], nb_bits, nb_threads, level); // TODO : mu adaptation : done?
+
 
   if(DBG)printf("Rank %d init - OK\n",world_rank);
 }
@@ -658,22 +659,46 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
   USER_T userid1,userid_uptodate;
   char xDist_str[50];
   uint8_t end;
+  uint8_t end_listener;
+  uint8_t end_stocker;
+  uint8_t end_searcher;
   int thread_num;
   int tag;
   MPI_Request req;
   int flagreq;
   struct timeval tv1,tv2;
   unsigned long long int time1,time2;
-  end = 0;
+  char * payload2; // response with found x
+  char ** payloads; // inquiries with dist pt and related info
+  char * payload_recv;
+  char * payload2_recv;
+  int last_user;
+  last_user=0;
+  end_listener = 0;
+  end_stocker = 0;
+  end_searcher = 0;
   userid_uptodate = 0;
+
   gettimeofday(&tv1,NULL);
-  #pragma omp parallel private(userid1,R, b, r, xDist, xDist_no_pfx, xDist_str, trail_length,thread_num,tag,req,flagreq) shared(userid_uptodate,end, trail_length_max) num_threads(nb_threads+2)
+
+  payload2 = NULL;
+  payload_recv = NULL;
+  payload2_recv = NULL;
+
+  payloads = malloc(sizeof(char *)*nb_threads);
+  for (i=0;i<nb_threads;i++)
+  {
+    payloads[i]=NULL;
+  }
+
+  if(DBG)printf("------------------\n");
+
+  #pragma omp parallel private(userid1,R, b, r, xDist, xDist_no_pfx, xDist_str, trail_length,thread_num,tag,req,flagreq) shared(end_listener,end_stocker,end_searcher,userid_uptodate,end, trail_length_max, payload2,payload2_recv,payloads,payload_recv) num_threads(nb_threads+2)
   {
       thread_num = omp_get_thread_num();
-      if (!thread_num) // stocker - OK
+      if (!thread_num) // stocker
       {
-        char * payload;
-        char * payload2;
+        //char * payload;
         size_t size_vect2;
         int i,coll,payload_size,reqflag,nb_pts;
         MPI_Status status;
@@ -681,30 +706,32 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
         mpz_t b2,x;
 
         mpz_inits(xDist,x,b,b2,xDist_no_pfx,NULL);
-
+        end_stocker=0;
         payload_size = 2*sizeof(unsigned char)+sizeof(int)+sizeof(uint16_t)+(int)((nb_bits-1)/8)+1+(int)((nb_bits-1-trailling_bits)/8)+1;
-        payload = malloc(payload_size); // size of thread_num (int), userid (uint_16), b and xDist (mpz_t)
+        payload_recv = malloc(payload_size); // size of thread_num (int), userid (uint_16), b and xDist (mpz_t)
 
         nb_pts = 0;
 
-        while(!end)
+        while(!end_stocker)
         {
           //MPI_Recv(payload,payload_size,MPI_CHAR, MPI_ANY_SOURCE, TAG_START, MPI_COMM_WORLD,&status);
-          MPI_Irecv(payload,payload_size,MPI_CHAR, MPI_ANY_SOURCE, TAG_XDIST, MPI_COMM_WORLD,&req);
+          MPI_Irecv(payload_recv,payload_size,MPI_CHAR, MPI_ANY_SOURCE, TAG_XDIST, MPI_COMM_WORLD,&req);
           reqflag = 0;
-          while(!reqflag && !end)
+          while(!reqflag && !end_stocker)
           {
             MPI_Test(&req,&reqflag,&status);
-            //if (ATT) printf("ATTENTE IRECV TO ANY THREAD                               \r");FF;
+            //printf("(%d)attente\n",world_rank);FF;
           }
+
 
           //printf("Received xdist from ")
           if(reqflag)
           {
-            unpack(payload,&thread_num,&userid1,b,xDist_no_pfx);
+            unpack(payload_recv,&thread_num,&userid1,b,xDist_no_pfx);
           }
           else
           {
+            if(DBG>1)printf("(%d) end_stocker est à 1 : %d\n",world_rank,end_stocker);
             break;
           }
           //gmp_printf("Rcvd xDnp=%Zd (userid = %u) from %d\n",xDist_no_pfx,userid1,status.MPI_SOURCE);
@@ -715,7 +742,12 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
             // get x2 from the right machine  // rank = (int)userid2 * (world_size/__NB_USERS__)
             if(is_collision_mu(x, b, userid1, b2, userid2, trailling_bits))
             {
-              mpz_init_set(X_res[userid1],x);
+
+              #pragma omp critical
+              {
+                mpz_set(x_res_local[userid1],x);
+              }
+
               payload2 = pack2(&size_vect2, userid1, x);
               /*
               // dbg start
@@ -727,95 +759,186 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
               gmp_printf("x = %Zd ; u = %u\n",xdbg,userdbg);
               // dbg end
               */
-              if(!end){
-                for (i=0;i<world_size && !end;i++)
+
+              if(!end_stocker)
+              {
+                if(userid1+1==__NB_USERS__) // last user
                 {
-                  //printf("(%d) Sending payload2 to %d\n",world_rank,i);
-                  MPI_Isend(payload2, size_vect2, MPI_CHAR, i, TAG_NEXT_USER, MPI_COMM_WORLD,&req);
                   /*
+                  for (i=0;i<world_size;i++) // sending message to update x of userid1
+                  {
+                    MPI_Isend(payload2, size_vect2, MPI_CHAR, i, TAG_NEXT_USER, MPI_COMM_WORLD,&req);
+                  }
+                  */
+
+                  // send last x only to machine 0
+                  if(DBG>1)printf("(%d) I'm sending last user to 0\n",world_rank);
+                  MPI_Isend(payload2, size_vect2, MPI_CHAR, 0, TAG_NEXT_USER, MPI_COMM_WORLD,&req);
                   reqflag = 0;
-                  while(!reqflag) // no (.. && !end) or 2 machines could end each other before being able to end other machines
+                  while(!reqflag && !end_stocker)
                   {
                     MPI_Test(&req,&reqflag,&status);
                   }
-                  */
+                  if(!end_stocker)
+                  {
+                    free(payload2);
+                    payload2 = NULL;
+                  }
+                  if(DBG>1)printf("(%d) Sent it!\n",world_rank);
+                  #pragma omp critical
+                  {
+                    end_stocker = 1;
+                    end_searcher = 1;
+                  }
+                }
+                else // found user isn't the last
+                {
+                  for (i=0;i<world_size;i++) // sending message to update x of userid1
+                  {
+                    MPI_Isend(payload2, size_vect2, MPI_CHAR, i, TAG_NEXT_USER, MPI_COMM_WORLD,&req);
+                    reqflag = 0;
+                    while(!reqflag && !end_stocker)
+                    {
+                      MPI_Test(&req,&reqflag,&status);
+                    }
+                  }
+                  if(!end_stocker) // every message was sent
+                  {
+                    if(DBG>2)printf("(%d) free payload2 routine\n",world_rank);
+                    free(payload2); // testt2
+                    payload2=NULL;
+                    if(DBG>2)printf("(%d) free payload2 routine - OK\n",world_rank);
+                    userid1++;
+                  }
+                  else // no guarantee a message can't still get sent right now, so no free(payload2) --> will be done after barrier when it is guaranteed
+                  {
+                    break;
+                  }
                 }
               }
               else
               {
                 break;
               }
-              free(payload2);
+              /*
+              if(!end)
+              {
+                for (i=0;i<world_size;i++) // sending message to update
+                {
+                  MPI_Isend(payload2, size_vect2, MPI_CHAR, (i+1+world_rank)%world_size, TAG_NEXT_USER, MPI_COMM_WORLD,&req); //printf("(%d) Sending payload2 to %d\n",world_rank,i);
+
+                  reqflag = 0;
+                  while(!reqflag) // no (.. && !end) or 2 machines could end each other before being able to end other machines
+                  {
+                    MPI_Test(&req,&reqflag,&status);
+                  }
+                }
+              }
+              else
+              {
+                break; // free payload2 ???
+              }
               userid1++;
               if(userid1==__NB_USERS__)
               {
                 end = 1;
               }
+              else
+              {
+                free(payload2); // if payload2 == payload3
+              }
+              */
             }
           }
         }
-        free(payload);
+        if(DBG>1)printf("(%d) free payload\n",world_rank);
+        // free(payload); // testt3 PROBLEMATIC
+        if(DBG>1)printf("(%d) free payload - OK\n",world_rank);
         if(DBG)printf("(%d) end stocker\n",world_rank);
       }
-      else if (thread_num==1) // listener - OK
+      else if (thread_num==1) // listener
       {
         mpz_t x;
         int payload2_size;
         int end_resp,end_flag;
         MPI_Request end_req;
         MPI_Status end_status;
-        char * payload2;
 
         mpz_init(x);
         payload2_size = sizeof(unsigned char)+sizeof(USER_T)+(int)((nb_bits-1)/8)+1;
-        payload2 = malloc(payload2_size); // size of thread_num (int), userid (uint_16), b and xDist (mpz_t)
-        while(!end)
+        payload2_recv = malloc(payload2_size); // size of thread_num (int), userid (uint_16), b and xDist (mpz_t)
+        while(!end_listener)
         {
-          MPI_Irecv(payload2, payload2_size, MPI_CHAR, MPI_ANY_SOURCE, TAG_NEXT_USER, MPI_COMM_WORLD,&end_req);
+          MPI_Irecv(payload2_recv, payload2_size, MPI_CHAR, MPI_ANY_SOURCE, TAG_NEXT_USER, MPI_COMM_WORLD,&end_req);
           end_flag = 0;
-          while(!end_flag && !end)
+          while(!end_flag && !end_listener)
           {
             MPI_Test(&end_req,&end_flag,&end_status);
             //printf("ATTENTE THREAD STOP                                   \r");FF;
           }
-          if(end)
+
+
+          if(end_listener)
           {
             break;
           }
-          unpack2(payload2,&userid1,x);
-          if(!world_rank && userid1>=userid_uptodate)
-          {
 
-            gettimeofday(&tv2,NULL);
-            time1 = (tv1.tv_sec) * 1000000 + tv1.tv_usec;
-            time2 = (tv2.tv_sec) * 1000000 + tv2.tv_usec;
-            times[userid1] = time2 - time1;
-            if (VERBOSE)gmp_printf("User %6u found : x=%20Zd from machine %3d in %20f s\r",userid1,x,end_status.MPI_SOURCE,((double)(time2-time1))/1000000);
-            tv1 = tv2;
-          }
-          mpz_set(X_res[userid1],x); // X_res[userid1] = x;
-          userid1 ++;
-          // useless criticial ? only thread able to modify it
-          #pragma omp critical
-          userid_uptodate = userid1>userid_uptodate ? userid1 : userid_uptodate;
-          if (userid_uptodate>=__NB_USERS__)
+          unpack2(payload2_recv,&userid1,x);
+
+          if (userid1>=userid_uptodate)
           {
-            if(0*DBG && !world_rank){printf("(%d) found last user\n",world_rank);}
+            if(!world_rank)
+            {
+              gettimeofday(&tv2,NULL);
+              time1 = (tv1.tv_sec) * 1000000 + tv1.tv_usec;
+              time2 = (tv2.tv_sec) * 1000000 + tv2.tv_usec;
+              times[userid1] = time2 - time1;
+              if (VERBOSE)gmp_printf("User %6u found : x=%20Zd from machine %3d in %20f s\r",userid1,x,end_status.MPI_SOURCE,((double)(time2-time1))/1000000);FF;
+              if (VERBOSE && userid1==__NB_USERS__-1) printf("\n");
+              tv1 = tv2;
+            }
+          }
+          mpz_set(x_res_local[userid1],x); // x_res_local[userid1] = x;
+          userid1 ++;
+          // useless critical ? only thread able to modify it
+          #pragma omp critical
+          {
+            userid_uptodate = userid1>userid_uptodate ? userid1 : userid_uptodate;
+          }
+          if (userid_uptodate>=__NB_USERS__) // last user
+          {
+            if(DBG && !world_rank){printf("=== found last user ===\n");}
+            if(DBG>1)printf("(%d) Ending everything\n",world_rank);
             #pragma omp critical
             {
-              end=1;
+              end_listener = 1;
+              end_stocker=1;
+              end_searcher=1;
             }
-            printf("(%d) end=1\n",world_rank);
+            if(!world_rank) // machine 0 is always the first to receive the last user and has to send the last message to everybody else
+            {
+              if(DBG>1)printf("(%d) About to send last user to everybody...\n",world_rank);
+              for (i=1;i<world_size;i++)
+              {
+                MPI_Send(payload2_recv,payload2_size,MPI_CHAR,i,TAG_NEXT_USER,MPI_COMM_WORLD);
+              }
+              if(DBG>1)printf("(%d) Sent last user to everybody!\n",world_rank);
+            }
+
+
+            //if(DBG)printf("(%d) end=1\n",world_rank);
           }
         }
-        free(payload2);
+        // if(DBG>1)printf("(%d) free payload2 listener\n",world_rank);
+        free(payload2_recv); // testt4 PROBLEMATIC
+        payload2_recv = NULL;
+        // if(DBG>1)printf("(%d) free payload2 listener - OK\n",world_rank);
         if(DBG)printf("(%d) end listener\n",world_rank);
       }
       else // searcher
       {
         uint8_t pfx_size;
         uint16_t pfx_int;
-        char * payload;
         size_t size_vect;
         int resp;
         mpz_t pfx;
@@ -834,119 +957,142 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
         double_and_add(&R, Q[userid1], b, E); // R = bQi
         trail_length = 0;
 
-        while(!end)
+        while(!end_searcher)
         {
           if(userid1==userid_uptodate && is_distinguished_mu(R, trailling_bits, &xDist)) // xDist = R.x >> trailling_bits
           {
-            //gmp_printf("payload : %-10x,%-10x,%-10Zx,%-10Zd\n",thread_num,userid1,b,xDist);
-            ////gmp_printf("xD = %Zx ;",xDist);
-            mpz_fdiv_q_2exp(pfx,xDist,(mp_bitcnt_t)nb_bits-trailling_bits-prefix_size_max-1); // pfx = xDist >> (nb_bits-pfx_size_max) // no handling extremely rare case when xDist is between 2**(nb_bits-1) and large_prime (=n) => actually can't happen
-            //printf("nb_bits - trailling_bits - prexDist_nofix_size_max = %d - %d - %d = %d ;",nb_bits,trailling_bits,prefix_size_max,nb_bits-trailling_bits-prefix_size_max);
-            //gmp_printf("pfx = %Zx ;",pfx);
+            //if(world_rank==1)printf("1");FF;
+            mpz_fdiv_q_2exp(pfx,xDist,(mp_bitcnt_t)nb_bits-trailling_bits-prefix_size_max-1);
             pfx_int = (uint16_t)mpz_get_ui(pfx);
             machine_dest = machine_map[pfx_int];
-            //printf("dest = %d ;",machine_dest);
             pfx_size = prefix_size_map[machine_dest];
             mpz_fdiv_r_2exp(xDist_no_pfx,xDist,nb_bits-trailling_bits-pfx_size-1);
-            //gmp_printf("xDnp = %Zx\n",xDist_no_pfx);
+            payloads[thread_num-2] = pack(&size_vect, thread_num, userid1, b, xDist_no_pfx);
+            //if(world_rank==1)printf("2");FF;
+            if(end_searcher)break;
+            MPI_Isend(payloads[thread_num-2], size_vect, MPI_CHAR, machine_dest, TAG_XDIST, MPI_COMM_WORLD,&req);
+            //gmp_printf("Sent xDnp=%Zd to %d\n",xDist_no_pfx,machine_dest);
+            //if(world_rank==1)printf("3");FF;
+            userid1 = userid_uptodate;
+            //if(world_rank==1)printf("4");FF;
+            generate_random_b(b,nb_bits,r_state);
+            //if(world_rank==1)printf("5");FF;
+            double_and_add(&R, Q[userid1], b, E); // new start, R = bQi
+            trail_length = 0;
+            //if(world_rank==1)printf("6");FF;
+            flagreq = 0;
+            //if(world_rank==1)printf("7");FF;
+            while(!flagreq && !end_searcher) // while not sent and not finished
+            {
+              MPI_Test(&req,&flagreq,NULL);
 
-            /*
-            if(pfx_size==pfx_size_max)
-            {
-              // do nothing
+              //printf("ATTENTE ISEND THREAD %d                      \r",thread_num);FF;
             }
-            else if (pfx_size==pfx_size_max-1)
+            //if(world_rank==1)printf("8");FF;
+            if(end_searcher)
             {
-              // update pfx_int
-              mpz_fdiv_q_2exp(pfx,xDist,nb_bits-pfx_size);
-              pfx_int = (uint16_t)mpz_get_ui(pfx);
+              break;
+              //if(world_rank==1)printf("9");FF;
             }
             else
             {
-              printf("Erreur pfx machine %d\n",world_rank);
-              exit(1);
+              free(payloads[thread_num-2]);
+              payloads[thread_num-2] = NULL;
+              // printf("(%d) free payload -\n",world_rank);
+              // free(payload); // tempo : mem leak in certain cases //testt0 PROBLEMATIC
+              // printf("(%d) free payload OK\n",world_rank);
+              //if(world_rank==1)printf("a");FF;
             }
-
-            //pfx = xDist >> (nb_bits-pfx_size);
-            mpz_fdiv_q_2exp(pfx,xDist,nb_bits-pfx_size);
-            pfx_int = (uint16_t)mpz_get_ui(pfx);
-
-            //xDist_no_pfx = xDist & ((1<<(nb_bits-pfx_size))-1);
-            mpz_fdiv_r_2exp(xDist_no_pfx,xDist,nb_bits-pfx_size);
-            */
-            payload = pack(&size_vect, thread_num, userid1, b, xDist_no_pfx);
-            /*
-            //printf("size_vect = %ld (should be 4+2+4+3 = 13)\n",size_vect);
-            //mpz_inits(bb,xx,NULL);
-            //unpack(payload,&thr,&user,bb,xx,nb_bits,trailling_bits);
-            //gmp_printf("payload : %-10x,%-10x,%-10Zx,%-10Zx\n",thr,user,bb,xx);
-            */
-            //printf("(%d) [%u] Sending pt to %d\r",world_rank,userid1,machine_dest);
-            MPI_Isend(payload, size_vect, MPI_CHAR, machine_dest, TAG_XDIST, MPI_COMM_WORLD,&req);
-            //gmp_printf("Sent xDnp=%Zd to %d\n",xDist_no_pfx,machine_dest);
-
-            userid1 = userid_uptodate;
-            if(end) break;
-            generate_random_b(b,nb_bits,r_state);
-            double_and_add(&R, Q[userid1], b, E); // new start, R = bQi
-            trail_length = 0;
-
-            flagreq = 0;
-            while(!flagreq && !end) // while not sent and not finished
-            {
-              MPI_Test(&req,&flagreq,NULL);
-              //printf("ATTENTE ISEND THREAD %d                      \r",thread_num);FF;
-            }
-            if(end)
-            {
-              break;
-            }
-            free(payload);
           }
-          else if (userid1!=userid_uptodate)
+          else if (userid1!=userid_uptodate) // R pas à jour
           {
             userid1 = userid_uptodate;
-            if(end) break;
-            generate_random_b(b,nb_bits,r_state);
-            double_and_add(&R, Q[userid1], b, E);
-            trail_length = 0;
+            if (userid1<__NB_USERS__)
+            {
+              if(end_searcher) break;
+              generate_random_b(b,nb_bits,r_state);
+              //if(world_rank==1)printf("c");FF;
+
+              // //if(world_rank==1)printf("%d_",userid1);FF;
+              double_and_add(&R, Q[userid1], b, E);
+              // //if(world_rank==1)printf("d");FF;
+              trail_length = 0;
+            }
+            else
+            {
+              end_searcher = 1;
+            }
           }
-          else // R n'est pas un pt dist.
+          else // R à jour mais n'est pas un pt dist.
           {
+            //if(world_rank==1)printf("e");FF;
             r=hash(R.y); // y%20
             f(R, M[r], &R, E); // 1 step (among 20) of the path
-
             trail_length++;
+            //if(world_rank==1)printf("f");FF;
             if(trail_length > trail_length_max)
             {
               //mpz_urandomb(b, r_state, nb_bits); // new random start
               //mpz_mod(b,b,n);
               userid1 = userid_uptodate;
-              if(end) break;
+              if(end_searcher) break;
+              //if(world_rank==1)printf("g");FF;
               generate_random_b(b,nb_bits,r_state);
               double_and_add(&R, Q[userid1], b, E);
+              //if(world_rank==1)printf("h");FF;
               trail_length = 0;
             }
           }
         }
-
+        //if(world_rank==1)printf("i");FF;
         point_clear(&R);
+        //if(world_rank==1)printf("j");FF;
         mpz_clears(b, xDist, NULL);
+        //if(world_rank==1)printf("k");FF;
         gmp_randclear(r_state);
-        MPI_Barrier(MPI_COMM_WORLD);
+        //if(world_rank==1)printf("l");FF;
+        //MPI_Barrier(MPI_COMM_WORLD);
         if(DBG)printf("(%d) end searcher n°%d\n",world_rank,thread_num-1);
       }
       //printf("fin thread n°%d\n",thread_num);
   }
   // end parallel search
+  if(DBG)printf("(%d) out multi-thread loop\n",world_rank);
+  MPI_Barrier(MPI_COMM_WORLD);  // sometimes of one of the x_res values changes right on this line (?????)
+  /*
+  if (payload2!=NULL)
+  {
+    if(DBG)printf("(%d) free last payload2... \n",world_rank);
+    free(payload2); // testt1
+    if(DBG)printf("(%d) free last payload2 - OK\n",world_rank);
+  }
+  */
+
+  // After the barrier it is guaranteed no more message can be sent/received so all buffers can be freed
+
+  if(payload2!=NULL)free(payload2);
+  if(payload2_recv!=NULL)free(payload2_recv);
+  if(payload_recv!=NULL)free(payload_recv);
+  for(i=0;i<nb_threads;i++)
+  {
+    if(payloads[i] != NULL)free(payloads[i]);
+  }
+
+
+  //printf("user %d : %lu pts\n",userid1,pts_per_users[userid1]);
   if(!world_rank)
   {
     for(i=0;i<__NB_USERS__;i++)
     {
-      mpz_set(x_res[i],X_res[i]);
+      mpz_init_set(x_res[i],x_res_local[i]);
+    }
+    if(DBG>1 && !world_rank)printf("set x_res\n");
+    if(DBG>1)
+    for(i=0;i<__NB_USERS__;i++)
+    {
+      gmp_printf("(%d)u%d=%Zd\n",world_rank,i,x_res[i]);
     }
   }
-  //printf("user %d : %lu pts\n",userid1,pts_per_users[userid1]);
   if(DBG)printf("--- End run machine %d ---\n",world_rank);
   return 0;
 }
@@ -1117,7 +1263,7 @@ int recv_mpz_var(mpz_t a, int src, int tag, int init)
   free(a_char);
   return 0;
 }
-
+/*
 void dbg_init_xtrue(mpz_t xtrue_init[__NB_USERS__])
 {
   int i;
@@ -1127,3 +1273,4 @@ void dbg_init_xtrue(mpz_t xtrue_init[__NB_USERS__])
     mpz_set(xtrue[i],xtrue_init[i]);
   }
 }
+*/
