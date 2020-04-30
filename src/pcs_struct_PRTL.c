@@ -52,9 +52,9 @@ void struct_init_PRTL(uint8_t _nb_bits, uint8_t trailling_bits, int nb_threads, 
   a_end = xDist_end + nb_bits;
   chain_array_size = pow(2, level);
   _vect_bin_t_initiate;
-    
+
   /* allocate chain table */
-	
+
   /***Memory limiting feature is turned off
       memory_limit = 100000000;
   ***/
@@ -68,7 +68,7 @@ void struct_init_PRTL(uint8_t _nb_bits, uint8_t trailling_bits, int nb_threads, 
       chain_array[i].nxt = NULL;
       omp_init_lock(&locks[i]);
     }
-    
+
   /* create mask */
   mpz_inits(mask, NULL);
   mpz_set_ui(mask, 1);
@@ -95,18 +95,18 @@ void struct_init_PRTL_mu(uint8_t _nb_bits, uint8_t trailling_bits, int nb_thread
   level = _level;
   suffix_len = c - level;
   unsigned int __vect_bin_size = nb_bits + suffix_len; //already init as a constant
-  __vect_bin_size += 16;  // userid is 16 bits
+  __vect_bin_size += sizeof(uint16_t);  // userid is 16 bits
   xDist_start = 0;
   xDist_end = suffix_len - 1;
   a_start = suffix_len;
   a_end = xDist_end + nb_bits;
-  userid_start = a_end + 1;  // ie : suffix_len + nb_bits 
-  userid_end = userid_start + 15; // ie : suffix_len + nb_bits + 16 - 1
+  userid_start = a_end + 1;  // ie : suffix_len + nb_bits
+  userid_end = userid_start + sizeof(uint16_t) - 1; // ie : suffix_len + nb_bits + 16 - 1
   chain_array_size = pow(2, level);
   _vect_bin_t_initiate;
-    
+
   /* allocate chain table */
-	
+
   /***Memory limiting feature is turned off
       memory_limit = 100000000;
   ***/
@@ -120,7 +120,7 @@ void struct_init_PRTL_mu(uint8_t _nb_bits, uint8_t trailling_bits, int nb_thread
       chain_array[i].nxt = NULL;
       omp_init_lock(&locks[i]);
     }
-    
+
   /* create mask */
   mpz_inits(mask, NULL);
   mpz_set_ui(mask, 1);
@@ -148,9 +148,9 @@ int struct_add_PRTL(mpz_t a_out, mpz_t a_in, mpz_t xDist)
   _vect_bin_chain_t *next;
   mpz_t key_mpz;
   int key;
-    
+
   mpz_inits(key_mpz, NULL);
-	
+
   mpz_and(key_mpz, xDist, mask);
   key = mpz_get_ui(key_mpz);
   omp_set_lock(&locks[key]);
@@ -190,17 +190,17 @@ int struct_add_PRTL(mpz_t a_out, mpz_t a_in, mpz_t xDist)
 	      vect_bin_set_mpz(next->v, xDist_start, suffix_len, xDist, level);
 	      vect_bin_set_mpz(next->v, a_start, nb_bits, a_in, 0);
 
-	      next->nxt = new;   
+	      next->nxt = new;
 	    }
 	  else
 	    {
 	      vect_bin_set_mpz(new->v, xDist_start, suffix_len, xDist, level);
 	      vect_bin_set_mpz(new->v, a_start, nb_bits, a_in, 0);
 	      if(next != NULL) //add in the middle
-		{	
+		{
 		  new->nxt = next;
 		}
-	      last->nxt = new;  
+	      last->nxt = new;
 	    }
 	  //}
         }
@@ -236,15 +236,15 @@ int struct_add_PRTL_mu(mpz_t a_out, uint16_t *userid2, mpz_t a_in, uint16_t user
   int key;
 
   mpz_inits(key_mpz, NULL);
-	
+
   mpz_and(key_mpz, xDist, mask); // key mpz = mask sur xDist (on récupère partie de gauche -> partie radix tree)
   key = mpz_get_ui(key_mpz); // key radix
   omp_set_lock(&locks[key]);
   next = &chain_array[key]; // ? chain_array ?
-  
+
   if(vect_bin_is_empty(next->v)) // Rien dans la chaîne : pas de collision
     {
-      vect_bin_set_mpz(next->v, xDist_start, suffix_len, xDist, level); // write suffix_len bits of xDist starting at level in v starting at xDist_start 
+      vect_bin_set_mpz(next->v, xDist_start, suffix_len, xDist, level); // write suffix_len bits of xDist starting at level in v starting at xDist_start
       vect_bin_set_mpz(next->v, a_start, nb_bits, a_in, 0); // write nb_bits bits of a_in in v starting at a_start
       vect_bin_set_userid(next->v, userid_start, userid1); // write userid in v starting at bit userid_start
       next->nxt=NULL;
@@ -260,8 +260,8 @@ int struct_add_PRTL_mu(mpz_t a_out, uint16_t *userid2, mpz_t a_in, uint16_t user
         {
 	  vect_bin_get_mpz(next->v, a_start, nb_bits, a_out);
 	  *userid2 = vect_bin_get_userid(next->v, userid_start);
-	  
-	    
+
+
 	  retval = 1;
         }
       else // pas de collision
@@ -282,19 +282,19 @@ int struct_add_PRTL_mu(mpz_t a_out, uint16_t *userid2, mpz_t a_in, uint16_t user
 	      vect_bin_set_mpz(next->v, a_start, nb_bits, a_in, 0);
 	      vect_bin_set_userid(next->v, userid_start, userid1);
 
-	      next->nxt = new;   
+	      next->nxt = new;
 	    }
-	  else 
+	  else
 	    {
 	      vect_bin_set_mpz(new->v, xDist_start, suffix_len, xDist, level);
 	      vect_bin_set_mpz(new->v, a_start, nb_bits, a_in, 0);
 	      vect_bin_set_userid(new->v, userid_start, (uint16_t) userid1);
-	      
+
 	      if(next != NULL) //add in the middle
-		{	
+		{
 		  new->nxt = next;
 		}
-	      last->nxt = new;  
+	      last->nxt = new;
 	    }
 	  //}
         }
@@ -314,12 +314,12 @@ int struct_search_PRTL_mu(mpz_t a_out, uint16_t *userid2, mpz_t xDist)
   int key;
 
   mpz_inits(key_mpz, NULL);
-	
+
   mpz_and(key_mpz, xDist, mask); // key mpz = mask sur xDist (on récupère partie de gauche -> partie radix tree)
   key = mpz_get_ui(key_mpz); // key radix
   omp_set_lock(&locks[key]);
   next = &chain_array[key]; // ? chain_array ?
-  
+
   if(!vect_bin_is_empty(next->v))
     {
       while(next != NULL && vect_bin_cmp_mpz(next->v, xDist_start, suffix_len, xDist, level) < 0)
@@ -439,7 +439,7 @@ unsigned long long int struct_memory_PRTL(unsigned long int *nb_points, float *r
 	    struct_memory_PRTL_rec(chain_array[i].nxt, nb_points);
 	}
     }
-    
+
   sum += _vect_bin_alloc_size;
   *rate_of_use = (1.0 - ((float)lost) / ((float)sum)) * 100.0;
   *rate_slots = (1.0 - ((float)empty_slots) / ((float)chain_array_size)) * 100.0;
@@ -480,7 +480,7 @@ unsigned long long int struct_memory_PRTL_mu(unsigned long int *nb_points, float
 	    struct_memory_PRTL_rec(chain_array[i].nxt, nb_points);
 	}
     }
-    
+
   sum += _vect_bin_alloc_size;
   *rate_of_use = (1.0 - ((float)lost) / ((float)sum)) * 100.0;
   *rate_slots = (1.0 - ((float)empty_slots) / ((float)chain_array_size)) * 100.0;

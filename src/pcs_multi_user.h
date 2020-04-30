@@ -7,7 +7,7 @@
 
 //#define __NB_USERS__ ((1<<16)-4)
 //#define __NB_USERS__ ((1<<8)-4)
-#define __NB_USERS__ 1
+#define __NB_USERS__ 64
 
 
 #define SEED_ (time(NULL))

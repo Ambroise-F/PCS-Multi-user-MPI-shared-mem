@@ -12,7 +12,7 @@
 uint8_t struct_type;
 
 /** Initialize the distinguished-point-storing structure.
- * 
+ *
  */
 void struct_init(uint8_t type, mpz_t n, uint8_t trailling_bits, uint8_t nb_bits, int nb_threads, uint8_t level)
 {
@@ -28,9 +28,9 @@ void struct_init(uint8_t type, mpz_t n, uint8_t trailling_bits, uint8_t nb_bits,
 
 
 /** Initialize the distinguished-point-storing structure.
- * 
+ *
  */
-void struct_init_mu(uint8_t type, mpz_t n, uint8_t trailling_bits, uint8_t nb_bits, int nb_threads, uint8_t level)
+void struct_init_mu(uint8_t type, mpz_t n, uint8_t trailling_bits, uint8_t nb_bits, int nb_threads, uint8_t level, uint16_t nb_users)
 {
     struct_type = type;
 	switch(struct_type)
@@ -38,15 +38,15 @@ void struct_init_mu(uint8_t type, mpz_t n, uint8_t trailling_bits, uint8_t nb_bi
 		case 0: struct_init_PRTL_mu(nb_bits, trailling_bits, nb_threads, level);
 			break;
         default:
-			struct_init_hash_mu(struct_type, n, trailling_bits, level);
+			struct_init_hash_mu(struct_type, n, trailling_bits, level,nb_users);
 	}
 }
 
 /** Search and insert.
- *  
- *  @brief Look for a point in the structure. If the point is not found 
- *  it is added with the corresponding a coefficient.  
- *  
+ *
+ *  @brief Look for a point in the structure. If the point is not found
+ *  it is added with the corresponding a coefficient.
+ *
  *  @param[out]	a_out	The a coefficient of the found point.
  *  @param[in]	a_in	The a coefficient of the newly added point.
  *  @param[in]	xDist	The x coordinate, without the trailling zeros.
@@ -65,14 +65,14 @@ int struct_add(mpz_t a_out, mpz_t a_in, mpz_t xDist, char xDist_str[])
 
 
 /** Search and insert.
- *  
- *  @brief Look for a point in the structure. If the point is not found 
- *  it is added with the corresponding a coefficient  
- *  
+ *
+ *  @brief Look for a point in the structure. If the point is not found
+ *  it is added with the corresponding a coefficient
+ *
  *  @param[out]	a_out	The a coefficient of the found point.
  *  @param[out] userid2 The userid of the found point.
  *  @param[in]	a_in	The a coefficient of the newly added point.
- *  @param[in]  userid1 The userid of the newly added point.               
+ *  @param[in]  userid1 The userid of the newly added point.
  *  @param[in]	xDist	The x coordinate, without the trailling zeros.
  *  @return 	1 if the point was found, 0 otherwise.
  */
@@ -90,11 +90,11 @@ int struct_add_mu(mpz_t a_out, int16_t *userid2, mpz_t a_in, int16_t userid1, mp
 
 
 /** Search but doesn't insert.
- *  
- *  @brief Look for a point in the structure.  
- *  
+ *
+ *  @brief Look for a point in the structure.
+ *
  *  @param[out]	a_out	The a coefficient of the found point.
- *  @param[out] userid2 The userid of the found point.               
+ *  @param[out] userid2 The userid of the found point.
  *  @param[in]	xDist	The x coordinate, without the trailling zeros.
  *  @return 	1 if the point was found, 0 otherwise.
  */
@@ -119,7 +119,7 @@ int struct_search_mu(mpz_t a_out, int16_t *userid2, mpz_t xDist, char xDist_str[
 
 
 /** Free the distinguished-point-storing structure.
- * 
+ *
  */
 void struct_free()
 {
@@ -127,7 +127,7 @@ void struct_free()
 	{
 		case 0: struct_free_PRTL();
 			break;
-        default: 
+        default:
 			struct_free_hash();
 	}
 }
@@ -135,7 +135,7 @@ void struct_free()
 
 
 /** Free the distinguished-point-storing structure.
- * 
+ *
  */
 void struct_free_mu()
 {
@@ -143,7 +143,7 @@ void struct_free_mu()
 	{
 		case 0: struct_free_PRTL_mu();
 			break;
-        default: 
+        default:
 			struct_free_hash_mu();
 	}
 }
@@ -151,7 +151,7 @@ void struct_free_mu()
 
 
 /** Get the memory occupation of the distinguished-point-storing structure.
- *  
+ *
  *  @return 	The memory occupation in bytes.
  */
 unsigned long long int struct_memory(unsigned long int *nb_points, float *rate_of_use, float *rate_slots, int nb_threads)
@@ -166,7 +166,7 @@ unsigned long long int struct_memory(unsigned long int *nb_points, float *rate_o
 }
 
 /** Get the memory occupation of the distinguished-point-storing structure.
- *  
+ *
  *  @return 	The memory occupation in bytes.
  */
 unsigned long long int struct_memory_mu(unsigned long int *nb_points, float *rate_of_use, float *rate_slots, int nb_threads)

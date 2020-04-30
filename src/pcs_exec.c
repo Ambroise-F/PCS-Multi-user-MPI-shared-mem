@@ -191,14 +191,13 @@ int main(int argc,char * argv[])
 	required = MPI_THREAD_SERIALIZED;
 	int provided = 0;
 	MPI_Init_thread(&argc,&argv,required,&provided);
-	/*
+
 	if (provided!=required)
 	{
-		if(!world_rank)
-			printf("MPI_THREAD_MULTIPLE not available\n");
+		if(!world_rank)printf("Required isn't provided\n");//printf("MPI_THREAD_MULTIPLE not available\n");
 		//exit(-1);
 	}
-	*/
+
 	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
@@ -210,8 +209,13 @@ int main(int argc,char * argv[])
 
 	/***********************************************************************/
 
+
+
 	if(!world_rank)
 	{
+		printf("************************************************\n");
+		printf("************************************************\n");
+
 		set_seed();
 	}
 
@@ -221,7 +225,7 @@ int main(int argc,char * argv[])
 	nb_threads = omp_get_max_threads(); // NBTHREADS
 	if(!world_rank)
 	{
-		printf("max threads : %d\n",nb_threads);
+		printf("Max threads : %d\n",nb_threads);
 	}
 
 
@@ -257,7 +261,9 @@ int main(int argc,char * argv[])
 
 	if(!world_rank)
 	{
-		printf("Using %d threads\n",nb_threads);
+		printf("Using %d threads on %d machine(s)\n",nb_threads,world_size);
+
+		printf("Starting runs with %d user(s) on %d bits curves\n************************************************\n",__NB_USERS__,nb_bits);
 	}
 
 	if(trailling_bits == 0)

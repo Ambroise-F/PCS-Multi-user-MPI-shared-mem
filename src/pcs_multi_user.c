@@ -95,7 +95,7 @@ void init_prefix_maps(int nb_machines)
 void set_seed()
 {
   SEED = SEED_;
-  printf("seed : %lx\n",SEED);
+  printf("Seed set : %lx\n",SEED);
 }
 
 /** Determines whether a point is a distinguished one.
@@ -504,7 +504,7 @@ void pcs_mu_init(point_t  P_init,
 
   trailling_bits = trailling_bits_init;
   nb_bits = nb_bits_init;
-  struct_init_mu(type_struct, n, trailling_bits + prefix_size_map[world_rank], nb_bits, nb_threads, level); // TODO : mu adaptation : done?
+  struct_init_mu(type_struct, n, trailling_bits + prefix_size_map[world_rank], nb_bits, nb_threads, level, __NB_USERS__); // TODO : mu adaptation : done?
 
 
   if(DBG)printf("Rank %d init - OK\n",world_rank);
@@ -635,7 +635,7 @@ int world_size_init)
 
   printf("nb_threads = %d\n",nb_threads);
   printf("world_size = %d\n",world_size);
-  struct_init_mu(type_struct, n, trailling_bits, nb_bits, nb_threads*(world_size-1), level); // TODO : mu adaptation : done?
+  struct_init_mu(type_struct, n, trailling_bits, nb_bits, nb_threads*(world_size-1), level, __NB_USERS__);
 
   printf("Init server\n" );
 }
