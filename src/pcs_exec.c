@@ -594,6 +594,7 @@ int main(int argc,char * argv[])
 			if(structs[struct_i] == 1)
 			{
 				if (!world_rank) printf("\t**Structure %s\n", struct_i_str[struct_i]);
+				MPI_Barrier(MPI_COMM_WORLD);
 				pcs_mu_init(P, Q, E, large_prime, A, nb_bits, trailling_bits, struct_i, nb_threads, level, world_size, world_rank);
 
 				//pcs_mu_run(x, nb_threads, nb_collisions);
