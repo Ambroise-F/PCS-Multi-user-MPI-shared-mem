@@ -8,6 +8,8 @@
 #include <gmp.h>
 #include <inttypes.h>
 
+
+
 typedef struct hashUNIX
 {
 	char *key;
@@ -20,10 +22,10 @@ typedef struct hashUNIX_mu
 {
 	char *key;
 	char *a_;
-        int16_t user;
+	int16_t user;
 	struct hashUNIX_mu *next;
 
-}hashUNIX_mu_t;
+} hashUNIX_mu_t;
 
 
 

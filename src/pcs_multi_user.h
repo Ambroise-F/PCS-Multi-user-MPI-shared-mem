@@ -7,7 +7,7 @@
 
 //#define __NB_USERS__ ((1<<16)-4)
 //#define __NB_USERS__ ((1<<8)-4)
-#define __NB_USERS__ 64
+#define __NB_USERS__ 4
 
 
 #define SEED_ (time(NULL))
@@ -55,32 +55,4 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
 
 
 
-void pcs_mu_init_server(
-									 point_t  P_init,
-									 point_t Q_init[__NB_USERS__],
-									 elliptic_curve_t E_init,
-									 mpz_t n_init,
-									 mpz_t *A_init,
-                   uint8_t nb_bits_init,
-                   uint8_t trailling_bits_init,
-                   int type_struct,
-                   int nb_threads,
-                   uint8_t level,
-                   int world_size);
-
-
-
-void pcs_mu_init_client(
-                    point_t P_init,
-                    point_t Q_init[__NB_USERS__],
-                    elliptic_curve_t E_init,
-                    mpz_t n_init,
- 		                mpz_t *A_init,
-                    uint8_t nb_bits_init,
-                    uint8_t trailling_bits_init,
-                    int nb_threads,
-                    uint8_t level);
-
-void pcs_mu_clear_server();
-void pcs_mu_clear_client();
 void dbg_init_xtrue(mpz_t xtrue_init[__NB_USERS__]);

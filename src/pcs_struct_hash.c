@@ -29,6 +29,7 @@ static unsigned long long int memory_limit;
  ***/
 
 
+
 /** Calculate the hash table recommended size.
  *
  *	@brief The recommended size corresponds to the expected number
@@ -216,19 +217,22 @@ int struct_add_hash_mu(mpz_t a_out, uint16_t *userid2, mpz_t a_in, uint16_t user
 	hashUNIX_mu_t *next;
 	uint8_t retval = 0;
 
+
 	h = get_hash(xDist); // hash
 	omp_set_lock(&table_locks[h]); // lock thread on h (so 2 threads with the same h don't collide)
 	next = table_mu[h];
-    while(next != NULL && next-> key != NULL && strncmp(xDist, next->key, strlen(xDist)) > 0)
+	if (next!=NULL)
+	{
+	}
+  while(next != NULL && next-> key != NULL && strncmp(xDist, next->key, strlen(xDist)) > 0)
 	{
 		last = next;
 		next = next->next;
 	}
-
 	if(next != NULL && next->key != NULL && strcmp(xDist, next->key) == 0 ) //collision
 	{
 		mpz_set_str(a_out, next->a_, 62); // a_out from a_ (stored in string base62)
-                *userid2 =  next->user;
+    *userid2 =  next->user;
 		retval = 1;
 	}
 	else
@@ -337,7 +341,7 @@ void struct_free_hash_mu(void)
 	hashUNIX_mu_t *last;
 	hashUNIX_mu_t *next;
 
-    omp_destroy_lock(&memory_alloc_lock);
+  omp_destroy_lock(&memory_alloc_lock);
 	for(i = 0; i < table_size; i++)
 	{
 		next = table_mu[i];
@@ -346,7 +350,6 @@ void struct_free_hash_mu(void)
 		{
 			free(next->key);
 			free(next->a_);
-                        //free(next->user); //?
 			last = next;
 			next = next->next;
 			free(last);

@@ -283,7 +283,7 @@ int main(int argc,char * argv[])
 		point_init(&Q[int_i]);
 	}
 	//point_init(&Q);
-	mpz_inits(x,large_prime, key, NULL);
+	mpz_init(large_prime);
 	for (int_i=0; int_i<__NB_USERS__;int_i++)
 	{
 		mpz_inits(xs[int_i],keys[int_i],NULL);
@@ -347,6 +347,7 @@ int main(int argc,char * argv[])
 
 	test_i = 0;
 
+
 	//test_i = 3; // to be removed
 	while(test_i < nb_tests)
 	{
@@ -386,10 +387,12 @@ int main(int argc,char * argv[])
 		for (int_i=0;int_i<__NB_USERS__;int_i++)
 		{
 			//choose a key of size: nb_bits
-			generate_random_key(key, nb_bits - 1, ((SEED + test_i<<24)^0x5ad8f449)+(int_i<<16), large_prime);
+			generate_random_key(keys[int_i], nb_bits - 1, ((SEED + test_i<<24)^0x5ad8f449)+(int_i<<16), large_prime);
+
 			//compute Q
-			mpz_init_set(keys[int_i],key);
-			double_and_add(&Q[int_i], P, key, E);
+			//mpz_set(keys[int_i],key);
+			double_and_add(&Q[int_i], P, keys[int_i], E);
+			//gmp_printf("(%d)[%d] k=%10Zd ; Q=(%10Zd,%10Zd)\n",world_rank,int_i,keys[int_i],Q[int_i].x,Q[int_i].y);
 			//if(!world_rank)gmp_printf("keys[%d] = %Zd\n",int_i,keys[int_i]);
 			//MPI_Barrier(MPI_COMM_WORLD);
 		}
@@ -596,29 +599,27 @@ int main(int argc,char * argv[])
 				if (!world_rank) printf("\t**Structure %s\n", struct_i_str[struct_i]);
 				MPI_Barrier(MPI_COMM_WORLD);
 				pcs_mu_init(P, Q, E, large_prime, A, nb_bits, trailling_bits, struct_i, nb_threads, level, world_size, world_rank);
-
-				//pcs_mu_run(x, nb_threads, nb_collisions);
-				//pcs_mu_run_shared_mem(xs,nb_threads,times,pts_per_users);
 				MPI_Barrier(MPI_COMM_WORLD);
 				gettimeofday(&tv1,NULL);
-				pcs_mu_run_shared_mem(nb_threads, world_rank,xs, times, pts_per_users);
+				pcs_mu_run_shared_mem(nb_threads, world_rank, xs, times, pts_per_users);
 				gettimeofday(&tv2, NULL);
 				MPI_Barrier(MPI_COMM_WORLD);
-				time1=(tv1.tv_sec) * 1000000 + tv1.tv_usec;
+
+				time1 = (tv1.tv_sec) * 1000000 + tv1.tv_usec;
 				time2 = (tv2.tv_sec) * 1000000 + tv2.tv_usec;
 				time0 = time2 - time1;
 				memory = struct_memory_mu(&nb_points, &rate_of_use, &rate_slots, nb_threads);
-
 				if(!world_rank)
 				{
+					// verif keys
 					for (key_i = 0; key_i<__NB_USERS__; key_i++)
 					{
 						ok = 1;
 						//gmp_printf("xs%d = %Zd\n",key_i,xs[key_i]);
 						if(mpz_cmp(xs[key_i], keys[key_i])==0)
 						{
-							//printf("key n°%d is OK\n",key_i);
-							//gmp_printf("key was %Zd - result is %Zd\n",keys[key_i],xs[key_i]);
+							printf("key n°%d is OK\n",key_i);
+							gmp_printf("key was %Zd - result is %Zd\n",keys[key_i],xs[key_i]);
 						}
 						else
 						{
@@ -641,11 +642,10 @@ int main(int argc,char * argv[])
 						printf("Erreur dans le calcul d'au moins une clé\n");
 						break;
 					}
-
-
-
-
-
+				}
+				pcs_mu_clear();
+				if(!world_rank)
+				{
 					/*** Write number of points needed to find one collision for each user ***/
 					file_res=fopen(RESULTS_PATH"nbpts_mu.all","a");
 					if (file_res == NULL)
@@ -721,6 +721,7 @@ int main(int argc,char * argv[])
 			}
 		}
 		test_i++;
+
 	}
 
 	curve_clear(&E);
@@ -729,10 +730,11 @@ int main(int argc,char * argv[])
 	{
 		point_clear(&Q[int_i]);
 	}
-	mpz_clears(x, large_prime, key, NULL);
+
+	mpz_clear(large_prime);
 	for(j=0;j<__NB_ENSEMBLES__;j++)
 	{
-		mpz_clears(A[j],NULL);
+		mpz_clear(A[j]);
 	}
 	MPI_Finalize();
 }

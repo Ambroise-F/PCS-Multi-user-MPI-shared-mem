@@ -15,8 +15,9 @@
 #include "pcs.h"
 #include "pcs_multi_user.h"
 
-#define VERBOSE 1
 
+#define VERBOSE 1
+#define END "\n"
 // MPI flags
 #define TAG_XDIST 1
 #define TAG_NEXT_USER 2
@@ -33,7 +34,7 @@ point_t P;
 point_t Q[__NB_USERS__]; // One Q per user
 mpz_t n;
 mpz_t *A;
-mpz_t *B;
+//mpz_t *B;
 mpz_t x_res_local[__NB_USERS__]; // One x per user
 point_t M[__NB_ENSEMBLES__]; // precomputed a*P values
 uint8_t trailling_bits;
@@ -447,7 +448,7 @@ void pcs_mu_init(point_t  P_init,
   point_t Q_init[__NB_USERS__],
   elliptic_curve_t E_init,
   mpz_t n_init,
-  mpz_t *A_init,
+  mpz_t *A_init, //A[__NB_ENSEMBLES__]
   uint8_t nb_bits_init,
   uint8_t trailling_bits_init,
   int type_struct,
@@ -466,6 +467,9 @@ void pcs_mu_init(point_t  P_init,
   prefix_local = prefix_map[world_rank];
   prefix_size_local = prefix_size_map[world_rank];
 
+
+
+
   point_init(&P);
   //point_init(&Q);
   curve_init(&E);
@@ -480,6 +484,7 @@ void pcs_mu_init(point_t  P_init,
   //mpz_set(Q.y, Q_init.y);
   //mpz_set(Q.z, Q_init.z);
 
+
   mpz_set(E.A, E_init.A);
   mpz_set(E.B, E_init.B);
   mpz_set(E.p, E_init.p);
@@ -490,15 +495,20 @@ void pcs_mu_init(point_t  P_init,
 
   for(j=0; j<__NB_USERS__; j++) // Q init
   {
+
+    point_init(&Q[j]);
     mpz_set(Q[j].x,Q_init[j].x);
     mpz_set(Q[j].y,Q_init[j].y);
     mpz_set(Q[j].z,Q_init[j].z);
+
     mpz_init(x_res_local[j]);
 
   }
+
   for(i=0; i<__NB_ENSEMBLES__; i++) // has to be after Q inits at index j since it is needed for lin_comb_mu
   {
-    mpz_inits(M[i].x,M[i].y,M[i].z,NULL);
+    point_init(&M[i]);
+    //mpz_inits(M[i].x,M[i].y,M[i].z,NULL);
     lin_comb_mu(&M[i],A[i]);
   }
 
@@ -508,136 +518,6 @@ void pcs_mu_init(point_t  P_init,
 
 
   if(DBG)printf("Rank %d init - OK\n",world_rank);
-}
-
-/** Initialize all variables needed to do a PCS algorithm.
-*
-*/
-void pcs_mu_init_client(point_t  P_init,
-point_t Q_init[__NB_USERS__],
-elliptic_curve_t E_init,
-mpz_t n_init,
-mpz_t *A_init,
-uint8_t nb_bits_init,
-uint8_t trailling_bits_init,
-int nb_threads,
-uint8_t level)
-{
-  uint8_t i; //  __NB_ENSEMBLES__
-  int j; // __NB_USERS__
-  uint16_t user;
-
-
-  point_init(&P);
-  //point_init(&Q);
-  curve_init(&E);
-  mpz_init(n);
-
-
-  mpz_set(P.x, P_init.x);
-  mpz_set(P.y, P_init.y);
-  mpz_set(P.z, P_init.z);
-
-  //mpz_set(Q.x, Q_init.x);
-  //mpz_set(Q.y, Q_init.y);
-  //mpz_set(Q.z, Q_init.z);
-
-  mpz_set(E.A, E_init.A);
-  mpz_set(E.B, E_init.B);
-  mpz_set(E.p, E_init.p);
-
-  mpz_set(n, n_init);
-
-  A = A_init;
-
-
-
-  for(j=0; j<__NB_USERS__; j++) // Q init
-  {
-    mpz_set(Q[j].x,Q_init[j].x);
-    mpz_set(Q[j].y,Q_init[j].y);
-    mpz_set(Q[j].z,Q_init[j].z);
-    user = (uint16_t) j;
-
-  }
-  for(i=0; i<__NB_ENSEMBLES__; i++) // has to be after Q inits at index j since it is needed for lin_comb_mu
-  {
-    mpz_inits(M[i].x,M[i].y,M[i].z,NULL);
-    lin_comb_mu(&M[i],A[i]);
-  }
-
-  trailling_bits = trailling_bits_init;
-  nb_bits = nb_bits_init;
-  printf("Init client\n" );
-}
-
-/** Initialize all variables needed to do a PCS algorithm.
-*
-*/
-void pcs_mu_init_server(
-point_t  P_init,
-point_t Q_init[__NB_USERS__],
-elliptic_curve_t E_init,
-mpz_t n_init,
-mpz_t *A_init,
-uint8_t nb_bits_init,
-uint8_t trailling_bits_init,
-int type_struct,
-int nb_threads,
-uint8_t level,
-int world_size_init)
-{
-  uint8_t i; //  __NB_ENSEMBLES__
-  int j; // __NB_USERS__
-  uint16_t user;
-  world_size = world_size_init;
-
-
-  point_init(&P);
-  //point_init(&Q);
-  curve_init(&E);
-  mpz_init(n);
-
-
-  mpz_set(P.x, P_init.x);
-  mpz_set(P.y, P_init.y);
-  mpz_set(P.z, P_init.z);
-
-  //mpz_set(Q.x, Q_init.x);
-  //mpz_set(Q.y, Q_init.y);
-  //mpz_set(Q.z, Q_init.z);
-
-  mpz_set(E.A, E_init.A);
-  mpz_set(E.B, E_init.B);
-  mpz_set(E.p, E_init.p);
-
-  mpz_set(n, n_init);
-
-  A = A_init;
-
-  for(j=0; j<__NB_USERS__; j++) // Q init
-  {
-    mpz_set(Q[j].x,Q_init[j].x);
-    mpz_set(Q[j].y,Q_init[j].y);
-    mpz_set(Q[j].z,Q_init[j].z);
-    user = (uint16_t) j;
-
-  }
-  for(i=0; i<__NB_ENSEMBLES__; i++) // has to be after Q inits at index j since it is needed for lin_comb_mu
-  {
-    mpz_inits(M[i].x,M[i].y,M[i].z,NULL);
-    lin_comb_mu(&M[i],A[i]);
-  }
-
-  trailling_bits = trailling_bits_init;
-  nb_bits = nb_bits_init;
-
-
-  printf("nb_threads = %d\n",nb_threads);
-  printf("world_size = %d\n",world_size);
-  struct_init_mu(type_struct, n, trailling_bits, nb_bits, nb_threads*(world_size-1), level, __NB_USERS__);
-
-  printf("Init server\n" );
 }
 
 
@@ -714,17 +594,14 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
 
         while(!end_stocker)
         {
+
           //MPI_Recv(payload,payload_size,MPI_CHAR, MPI_ANY_SOURCE, TAG_START, MPI_COMM_WORLD,&status);
           MPI_Irecv(payload_recv,payload_size,MPI_CHAR, MPI_ANY_SOURCE, TAG_XDIST, MPI_COMM_WORLD,&req);
           reqflag = 0;
           while(!reqflag && !end_stocker)
           {
             MPI_Test(&req,&reqflag,&status);
-            //printf("(%d)attente\n",world_rank);FF;
           }
-
-
-          //printf("Received xdist from ")
           if(reqflag)
           {
             unpack(payload_recv,&thread_num,&userid1,b,xDist_no_pfx);
@@ -734,11 +611,11 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
             if(DBG>1)printf("(%d) end_stocker est à 1 : %d\n",world_rank,end_stocker);
             break;
           }
-          //gmp_printf("Rcvd xDnp=%Zd (userid = %u) from %d\n",xDist_no_pfx,userid1,status.MPI_SOURCE);
           coll = struct_add_mu(b2,&userid2,b,userid1,xDist_no_pfx,xDist_str);
           nb_pts++;
           if (coll)
           {
+            //printf("-%d1-",world_rank);FF;
             // get x2 from the right machine  // rank = (int)userid2 * (world_size/__NB_USERS__)
             if(is_collision_mu(x, b, userid1, b2, userid2, trailling_bits))
             {
@@ -759,7 +636,6 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
               gmp_printf("x = %Zd ; u = %u\n",xdbg,userdbg);
               // dbg end
               */
-
               if(!end_stocker)
               {
                 if(userid1+1==__NB_USERS__) // last user
@@ -815,9 +691,11 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
                     break;
                   }
                 }
+
               }
               else
               {
+
                 break;
               }
               /*
@@ -893,7 +771,7 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
               time1 = (tv1.tv_sec) * 1000000 + tv1.tv_usec;
               time2 = (tv2.tv_sec) * 1000000 + tv2.tv_usec;
               times[userid1] = time2 - time1;
-              if (VERBOSE)gmp_printf("User %6u found : x=%20Zd from machine %3d in %20f s\r",userid1,x,end_status.MPI_SOURCE,((double)(time2-time1))/1000000);FF;
+              if (VERBOSE)gmp_printf("User %6u found : x=%20Zd from machine %3d in %20f s"END,userid1,x,end_status.MPI_SOURCE,((double)(time2-time1))/1000000);FF;
               if (VERBOSE && userid1==__NB_USERS__-1) printf("\n");
               tv1 = tv2;
             }
@@ -1077,15 +955,16 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
   {
     if(payloads[i] != NULL)free(payloads[i]);
   }
+  free(payloads);
 
 
+  for(i=0;i<__NB_USERS__;i++)
+  {
+    mpz_set(x_res[i],x_res_local[i]);
+  }
   //printf("user %d : %lu pts\n",userid1,pts_per_users[userid1]);
   if(!world_rank)
   {
-    for(i=0;i<__NB_USERS__;i++)
-    {
-      mpz_init_set(x_res[i],x_res_local[i]);
-    }
     if(DBG>1 && !world_rank)printf("set x_res\n");
     if(DBG>1)
     for(i=0;i<__NB_USERS__;i++)
@@ -1105,56 +984,37 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
 */
 void pcs_mu_clear()
 {
-
   uint32_t i;
   point_clear(&P);
-  /*
+
+  // printf("(%d) cleared P\n",world_rank);FF;
   for (i=0;i<__NB_USERS__;i++)
   {
-  point_clear(&Q[i]);
-  //mpz_clears(Q[i].x, Q[i].y, Q[i].z, NULL);
-}
-free(Q);
-printf("cleared\n");
-printf("clearing M... ");fflush(stdout);
-*/
-for(i = 0; i < __NB_ENSEMBLES__; i++)
-{
-  point_clear(&M[i]);
-  //mpz_clears(M[i].x, M[i].y, M[i].z, NULL);
-}
+    point_clear(&Q[i]); //mpz_clears(Q[i].x, Q[i].y, Q[i].z, NULL);
+    mpz_clear(x_res_local[i]);
+  }
 
-  curve_clear(&E);
-  mpz_clear(n);
-  struct_free_mu();
-}
+  // printf("(%d) cleared Q\n",world_rank);FF;
 
-/** Free all variables used in the previous PCS run.
-*
-*/
-void pcs_mu_clear_server()
-{
-  mpz_clear(n);
-  struct_free_mu();
-}
-
-/** Free all variables used in the previous PCS run.
-*
-*/
-void pcs_mu_clear_client()
-{
-
-  uint32_t i;
-  point_clear(&P);
 
   for(i = 0; i < __NB_ENSEMBLES__; i++)
   {
-    point_clear(&M[i]);
+    mpz_clears(M[i].x, M[i].y, M[i].z, NULL);
   }
+
+
 
   curve_clear(&E);
   mpz_clear(n);
+  //struct_free_mu();
+
+  free(machine_map);
+  free(prefix_map);
+  free(prefix_size_map);
+
+  printf("(%d) fully cleared\n",world_rank);FF;
 }
+
 
 int share_mpz_var(mpz_t a, int world_rank, int init)
 {
