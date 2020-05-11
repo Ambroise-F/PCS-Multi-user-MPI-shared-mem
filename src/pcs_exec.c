@@ -177,6 +177,7 @@ int main(int argc,char * argv[])
 	int world_rank;
 	int world_size;
 	int seed;
+	int nb_pts;
 	uint8_t structs[__NB_STRUCTURES__] = {0};
 	rate_slots = 0.0;
 	level = 7;
@@ -187,15 +188,15 @@ int main(int argc,char * argv[])
 	/***********************************************************************/
 
 	// MPI INIT
-	int required = MPI_THREAD_MULTIPLE;
-	required = MPI_THREAD_SERIALIZED;
+	//int required = MPI_THREAD_MULTIPLE;
+	int required = MPI_THREAD_SERIALIZED;
 	int provided = 0;
 	MPI_Init_thread(&argc,&argv,required,&provided);
 
 	if (provided!=required)
 	{
-		if(!world_rank)printf("Required isn't provided\n");//printf("MPI_THREAD_MULTIPLE not available\n");
-		//exit(-1);
+		if(!world_rank)printf("Required isn't provided\n");
+		exit(-1);
 	}
 
 	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
@@ -209,7 +210,7 @@ int main(int argc,char * argv[])
 
 	/***********************************************************************/
 
-
+	printf("(%d) MPI_Init\n",world_rank);
 
 	if(!world_rank)
 	{
@@ -596,6 +597,10 @@ int main(int argc,char * argv[])
 		{
 			if(structs[struct_i] == 1)
 			{
+				for(int_i=0;int_i<__NB_USERS__;int_i++)
+				{
+					pts_per_users[int_i] = 0;
+				}
 				if (!world_rank) printf("\t**Structure %s\n", struct_i_str[struct_i]);
 				MPI_Barrier(MPI_COMM_WORLD);
 				pcs_mu_init(P, Q, E, large_prime, A, nb_bits, trailling_bits, struct_i, nb_threads, level, world_size, world_rank);
@@ -604,6 +609,17 @@ int main(int argc,char * argv[])
 				pcs_mu_run_shared_mem(nb_threads, world_rank, xs, times, pts_per_users);
 				gettimeofday(&tv2, NULL);
 				MPI_Barrier(MPI_COMM_WORLD);
+				if(!world_rank){ MPI_Reduce(MPI_IN_PLACE ,pts_per_users,__NB_USERS__,MPI_UNSIGNED_LONG,MPI_SUM,0,MPI_COMM_WORLD);}
+				else{            MPI_Reduce(pts_per_users,pts_per_users,__NB_USERS__,MPI_UNSIGNED_LONG,MPI_SUM,0,MPI_COMM_WORLD);}
+
+
+				if(!world_rank)
+				{
+					for(int_i=0;int_i<__NB_USERS__;int_i++)
+					{
+						printf("pt %d : %ld \n",int_i,pts_per_users[int_i]);
+					}
+				}
 
 				time1 = (tv1.tv_sec) * 1000000 + tv1.tv_usec;
 				time2 = (tv2.tv_sec) * 1000000 + tv2.tv_usec;
@@ -653,7 +669,7 @@ int main(int argc,char * argv[])
 						fprintf(stderr, "Can not open file nbpts_mu.all (see constant RESULTS_PATH in main.c)\n");
 						exit(1);
 					}
-					fprintf(file_res,"%hu %d %s %d %d %"SCNu8, __NB_USERS__,nb_bits, struct_i_str[struct_i], nb_threads, trailling_bits, level);
+					fprintf(file_res,"%hu %d %d %s %d %d %"SCNu8, __NB_USERS__,nb_bits, world_size, struct_i_str[struct_i], nb_threads, trailling_bits, level);
 					for (int_i=0;int_i<__NB_USERS__;int_i++)
 					{
 						fprintf(file_res," %lu",pts_per_users[int_i]);
@@ -670,7 +686,7 @@ int main(int argc,char * argv[])
 						fprintf(stderr, "Can not open file time_mu.all (see constant RESULTS_PATH in main.c)\n");
 						exit(1);
 					}
-					fprintf(file_res,"%hu %d %s %d %d %"SCNu8, __NB_USERS__,nb_bits, struct_i_str[struct_i], nb_threads, trailling_bits, level);
+					fprintf(file_res,"%hu %d %d %s %d %d %"SCNu8, __NB_USERS__,nb_bits, world_size, struct_i_str[struct_i], nb_threads, trailling_bits, level);
 					for (int_i=0;int_i<__NB_USERS__;int_i++)
 					{
 						fprintf(file_res," %lld",times[int_i]);
@@ -685,7 +701,7 @@ int main(int argc,char * argv[])
 						fprintf(stderr, "Can not open file time.all (see constant RESULTS_PATH in main.c)\n");
 						exit(1);
 					}
-					fprintf(file_res,"%d %s %d %d %"SCNu8" %llu\n", nb_bits, struct_i_str[struct_i], nb_threads, trailling_bits, level, time0);
+					fprintf(file_res,"%d %d %s %d %d %"SCNu8" %llu\n", nb_bits, world_size, struct_i_str[struct_i], nb_threads, trailling_bits, level, time0);
 					fclose(file_res);
 
 					/*** Write memory usage ***/
@@ -695,17 +711,7 @@ int main(int argc,char * argv[])
 						fprintf(stderr, "Can not open file memory.all (see constant RESULTS_PATH in main.c)\n");
 						exit(1);
 					}
-					fprintf(file_res,"%d %s %d %d %"SCNu8" %llu\n", nb_bits, struct_i_str[struct_i], nb_threads, trailling_bits, level, memory);
-					fclose(file_res);
-
-					/*** Write number of stored points ***/
-					file_res=fopen(RESULTS_PATH"points.all","a");
-					if (file_res == NULL)
-					{
-						fprintf(stderr, "Can not open file points.all (see constant RESULTS_PATH in main.c)\n");
-						exit(1);
-					}
-					fprintf(file_res,"%d %s %d %d %"SCNu8" %lu\n", nb_bits, struct_i_str[struct_i], nb_threads, trailling_bits, level, nb_points);
+					fprintf(file_res,"%d %d %s %d %d %"SCNu8" %llu\n", nb_bits, world_size, struct_i_str[struct_i], nb_threads, trailling_bits, level, memory);
 					fclose(file_res);
 
 					/*** Write rate of memory use ***/

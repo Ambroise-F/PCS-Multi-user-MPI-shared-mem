@@ -69,7 +69,7 @@ void f(point_t oldR, point_t M, point_t * newR, elliptic_curve_t e)
 void compute_x(mpz_t x, mpz_t a1, mpz_t a2, mpz_t b1, mpz_t b2, mpz_t n)
 {
 	mpz_t xUP, xDOWN;
-	mpz_inits(xUP, xDOWN, NULL);	
+	mpz_inits(xUP, xDOWN, NULL);
 	mpz_sub(xUP, a2, a1);
 	mpz_mmod(xUP, xUP, n);
 	mpz_sub(xDOWN, b1, b2);
@@ -94,9 +94,9 @@ void compute_x_2users(mpz_t x, mpz_t a1, mpz_t a2, mpz_t b1, mpz_t b2, mpz_t x2,
 {
         mpz_t xR, xI;
 	mpz_inits(xR, xI, NULL);
-        
+
         mpz_mul(xR,b2,x2);  // b2*x2
-        mpz_mmod(xR,xR,n);  
+        mpz_mmod(xR,xR,n);
         mpz_add(xR,xR,a2);  // +a2
         mpz_mmod(xR,xR,n);
         mpz_sub(xR,xR,a1);  // -a1
@@ -104,9 +104,9 @@ void compute_x_2users(mpz_t x, mpz_t a1, mpz_t a2, mpz_t b1, mpz_t b2, mpz_t x2,
         mpz_invert(xI,b1,n);// b1^-1 mod n
         mpz_mul(x,xR,xI);  // (b2*x2+a2-a1) * (b1^-1)
         mpz_mmod(x,x,n);
-        
+
         mpz_clears(xR,xI, NULL);
-        
+
 }
 
 
@@ -140,13 +140,13 @@ void pollard_rho(mpz_t x, point_t P, point_t Q, elliptic_curve_t E, mpz_t n, mpz
 	mpz_init_set_ui(b[0], 0);
 	mpz_init_set_ui(b[1], 0);
 	int r;
-	
+
 	point_t M[20];
 	for(r = 0; r < 20; r++)
 	{
 		mpz_inits(M[r].x,M[r].y,M[r].z,NULL);
 	}
-	
+
 	r = hash(R[1].y);
 	compute_a(a[1], A[r], n);
 	compute_b(b[1], B[r], n);
@@ -157,21 +157,18 @@ void pollard_rho(mpz_t x, point_t P, point_t Q, elliptic_curve_t E, mpz_t n, mpz
 		compute_a(a[0], A[r], n);
 		compute_b(b[0], B[r], n);
 		f(R[0], M[r], &R[0], E);
-		
-		r = hash(R[1].y);
-		compute_a(a[1], A[r], n);
-		compute_b(b[1], B[r], n);
-		f(R[1], M[r], &R[1], E);  
-		
+
 		r = hash(R[1].y);
 		compute_a(a[1], A[r], n);
 		compute_b(b[1], B[r], n);
 		f(R[1], M[r], &R[1], E);
-		
+
+		r = hash(R[1].y);
+		compute_a(a[1], A[r], n);
+		compute_b(b[1], B[r], n);
+		f(R[1], M[r], &R[1], E);
+
 	}
 	compute_x(x, a[0], a[1], b[0], b[1], n);
 	mpz_clears(a[0], a[1], b[0], b[1], NULL);
 }
-
-
-
