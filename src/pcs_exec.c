@@ -210,7 +210,7 @@ int main(int argc,char * argv[])
 
 	/***********************************************************************/
 
-	printf("(%d) MPI_Init\n",world_rank);
+	//printf("(%d) MPI_Init\n",world_rank);
 
 	if(!world_rank)
 	{
@@ -615,10 +615,12 @@ int main(int argc,char * argv[])
 
 				if(!world_rank)
 				{
+					/*
 					for(int_i=0;int_i<__NB_USERS__;int_i++)
 					{
 						printf("pt %d : %ld \n",int_i,pts_per_users[int_i]);
 					}
+					*/
 				}
 
 				time1 = (tv1.tv_sec) * 1000000 + tv1.tv_usec;
@@ -634,8 +636,8 @@ int main(int argc,char * argv[])
 						//gmp_printf("xs%d = %Zd\n",key_i,xs[key_i]);
 						if(mpz_cmp(xs[key_i], keys[key_i])==0)
 						{
-							printf("key n°%d is OK\n",key_i);
-							gmp_printf("key was %Zd - result is %Zd\n",keys[key_i],xs[key_i]);
+							//printf("key n°%d is OK\n",key_i);
+							//gmp_printf("key was %Zd - result is %Zd\n",keys[key_i],xs[key_i]);
 						}
 						else
 						{

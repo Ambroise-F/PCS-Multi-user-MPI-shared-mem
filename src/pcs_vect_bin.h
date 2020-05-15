@@ -16,13 +16,13 @@ typedef char _bool_t;
 // Size (in bits) of data stored in a single vector
 //#define __DATA_SIZE_IN_BITS__ (57+(SIZEOFUSERID<<3)) // works for 45 but not for 50 bits
 //#define __DATA_SIZE_IN_BITS__ (57+10+(SIZEOFUSERID<<3)) // works for 50 but not for 55?
-#define __DATA_SIZE_IN_BITS__ (107+(SIZEOFUSERID<<3)) // works for 55?
+#define __DATA_SIZE_IN_BITS__ (73+(SIZEOFUSERID<<3)) // works for 55?
 
 
 /// Size (in bytes) of data stored in a single vector
 ///Should be equal to ceil(__DATA_SIZE_IN_BITS__/8)
 //#define __DATA_SIZE_IN_BYTES__ (((_vect_bin_size / (sizeof(_vect_bin_t) << 3)) + ((_vect_bin_size % (sizeof(_vect_bin_t) << 3)) ? 1 : 0)))
-#define __DATA_SIZE_IN_BYTES__ (14+SIZEOFUSERID) // default is 8 + ...
+#define __DATA_SIZE_IN_BYTES__ (10+SIZEOFUSERID) // default is 8 + ...
 // 65 bits ??
 
 
@@ -51,7 +51,7 @@ typedef struct __vect_bin_list_t {
 /// call once at the begin of each program
 #define _vect_bin_t_initiate \
   _vect_bin_alloc_size = 0ULL; \
-  omp_init_lock(&_vect_alloc_size_lock) 
+  omp_init_lock(&_vect_alloc_size_lock)
 
 /// call it when you allocate several (_n) cells that will start
 /// each one list.
@@ -64,8 +64,8 @@ typedef struct __vect_bin_list_t {
   _v = (_vect_bin_chain_t *) malloc(sizeof(_vect_bin_chain_t)); \
   _v->nxt = NULL; \
   _vect_bin_alloc_size += sizeof(_vect_bin_chain_t); \
-  omp_unset_lock(&_vect_alloc_size_lock) 
-  
+  omp_unset_lock(&_vect_alloc_size_lock)
+
 
   /// Initialization of one cell that will be chained
   #define _vect_bin_chain_t_free(_v) \

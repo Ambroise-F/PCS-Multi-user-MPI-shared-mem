@@ -17,20 +17,22 @@
 
 
 #define VERBOSE 1
-#define END "\n"
+#define END "\r"
 // MPI flags
-#define TAG_XDIST 1
-#define TAG_NEXT_USER 2
+#define TAG_XDIST 0
+#define TAG_NEXT_USER 1
+
 
 #define USER_T uint16_t
 
 // debug macros
-#define DBG 2
+#define DBG 0
 #define FF fflush(stdout)
 #define qp(a) printf("%d",a);fflush(stdout)
 
 ///// #pragma omp critical (mpi_call)
 
+int exec_num; // execution number so tags can be changed and a message sent during a specific execution can't be received in an other
 elliptic_curve_t E;
 point_t P;
 point_t Q[__NB_USERS__]; // One Q per user
@@ -460,10 +462,14 @@ void pcs_mu_init(point_t  P_init,
   int world_rank_init)
 {
 
+
   uint8_t i; //  __NB_ENSEMBLES__
   int j; // __NB_USERS__
+
+  //exec_num = exec_num_init;
   world_size = world_size_init;
   world_rank = world_rank_init;
+
   init_prefix_maps(world_size);
 
   prefix_local = prefix_map[world_rank];
@@ -599,7 +605,7 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
           #pragma omp critical (mpi_call)
           {
             //MPI_Recv(payload,payload_size,MPI_CHAR, MPI_ANY_SOURCE, TAG_START, MPI_COMM_WORLD,&status);
-            MPI_Irecv(payload_recv,payload_size,MPI_CHAR, MPI_ANY_SOURCE, TAG_XDIST, MPI_COMM_WORLD,&req);
+            MPI_Irecv(payload_recv,payload_size,MPI_CHAR, MPI_ANY_SOURCE, TAG_XDIST<<exec_num, MPI_COMM_WORLD,&req);
           }
           reqflag = 0;
           while(!reqflag && !end_stocker)
@@ -662,7 +668,7 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
                   if(DBG>1)printf("(%d) I'm sending last user to 0\n",world_rank);
                   #pragma omp critical (mpi_call)
                   {
-                    MPI_Isend(payload2, size_vect2, MPI_CHAR, 0, TAG_NEXT_USER, MPI_COMM_WORLD,&req);
+                    MPI_Isend(payload2, size_vect2, MPI_CHAR, 0, TAG_NEXT_USER<<exec_num, MPI_COMM_WORLD,&req);
                   }
                   reqflag = 0;
                   while(!reqflag && !end_stocker)
@@ -690,7 +696,7 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
                   {
                     #pragma omp critical (mpi_call)
                     {
-                      MPI_Isend(payload2, size_vect2, MPI_CHAR, i, TAG_NEXT_USER, MPI_COMM_WORLD,&req);
+                      MPI_Isend(payload2, size_vect2, MPI_CHAR, i, TAG_NEXT_USER<<exec_num, MPI_COMM_WORLD,&req);
                     }
                     reqflag = 0;
                     while(!reqflag && !end_stocker)
@@ -772,7 +778,7 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
         {
           #pragma omp critical (mpi_call)
           {
-            MPI_Irecv(payload2_recv, payload2_size, MPI_CHAR, MPI_ANY_SOURCE, TAG_NEXT_USER, MPI_COMM_WORLD,&end_req);
+            MPI_Irecv(payload2_recv, payload2_size, MPI_CHAR, MPI_ANY_SOURCE, TAG_NEXT_USER<<exec_num, MPI_COMM_WORLD,&end_req);
           }
           end_flag = 0;
           while(!end_flag && !end_listener)
@@ -829,7 +835,7 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
               {
                 #pragma omp critical (mpi_call)
                 {
-                  MPI_Send(payload2_recv,payload2_size,MPI_CHAR,i,TAG_NEXT_USER,MPI_COMM_WORLD);
+                  MPI_Send(payload2_recv,payload2_size,MPI_CHAR,i,TAG_NEXT_USER<<exec_num,MPI_COMM_WORLD);
                 }
               }
               if(DBG>1)printf("(%d) Sent last user to everybody!\n",world_rank);
@@ -882,7 +888,7 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
             if(end_searcher)break;
             #pragma omp critical (mpi_call)
             {
-              MPI_Isend(payloads[thread_num-2], size_vect, MPI_CHAR, machine_dest, TAG_XDIST, MPI_COMM_WORLD,&req);
+              MPI_Isend(payloads[thread_num-2], size_vect, MPI_CHAR, machine_dest, TAG_XDIST<<exec_num, MPI_COMM_WORLD,&req);
             }
             //gmp_printf("Sent xDnp=%Zd to %d\n",xDist_no_pfx,machine_dest);
             //if(world_rank==1)printf("3");FF;
@@ -1052,7 +1058,7 @@ void pcs_mu_clear()
   free(prefix_map);
   free(prefix_size_map);
 
-  printf("(%d) fully cleared\n",world_rank);FF;
+  if(DBG)printf("(%d) fully cleared\n",world_rank);FF;
 }
 
 
