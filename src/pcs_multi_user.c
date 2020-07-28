@@ -17,11 +17,10 @@
 
 
 #define VERBOSE 1
-#define END "\r"
+#define END "\n"
 // MPI flags
-#define TAG_XDIST 0
-#define TAG_NEXT_USER 1
-
+#define TAG_XDIST 1
+#define TAG_NEXT_USER 2
 
 #define USER_T uint16_t
 
@@ -30,9 +29,8 @@
 #define FF fflush(stdout)
 #define qp(a) printf("%d",a);fflush(stdout)
 
-///// #pragma omp critical (mpi_call)
+// #pragma omp critical (mpi_call)
 
-int exec_num; // execution number so tags can be changed and a message sent during a specific execution can't be received in an other
 elliptic_curve_t E;
 point_t P;
 point_t Q[__NB_USERS__]; // One Q per user
@@ -462,14 +460,10 @@ void pcs_mu_init(point_t  P_init,
   int world_rank_init)
 {
 
-
   uint8_t i; //  __NB_ENSEMBLES__
   int j; // __NB_USERS__
-
-  //exec_num = exec_num_init;
   world_size = world_size_init;
   world_rank = world_rank_init;
-
   init_prefix_maps(world_size);
 
   prefix_local = prefix_map[world_rank];
@@ -602,18 +596,12 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
 
         while(!end_stocker)
         {
-          #pragma omp critical (mpi_call)
-          {
-            //MPI_Recv(payload,payload_size,MPI_CHAR, MPI_ANY_SOURCE, TAG_START, MPI_COMM_WORLD,&status);
-            MPI_Irecv(payload_recv,payload_size,MPI_CHAR, MPI_ANY_SOURCE, TAG_XDIST<<exec_num, MPI_COMM_WORLD,&req);
-          }
+          //MPI_Recv(payload,payload_size,MPI_CHAR, MPI_ANY_SOURCE, TAG_START, MPI_COMM_WORLD,&status);
+          MPI_Irecv(payload_recv,payload_size,MPI_CHAR, MPI_ANY_SOURCE, TAG_XDIST, MPI_COMM_WORLD,&req);
           reqflag = 0;
           while(!reqflag && !end_stocker)
           {
-            #pragma omp critical (mpi_call)
-            {
-              MPI_Test(&req,&reqflag,&status);
-            }
+            MPI_Test(&req,&reqflag,&status);
           }
           if(reqflag)
           {
@@ -625,10 +613,7 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
             break;
           }
           coll = struct_add_mu(b2,&userid2,b,userid1,xDist_no_pfx,xDist_str);
-          #pragma omp critical (pts_per_users)
-          {
-            pts_per_users[userid1]++;
-          }
+          pts_per_users[userid1]++;
           nb_pts++;
           if (coll)
           {
@@ -666,17 +651,11 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
 
                   // send last x only to machine 0
                   if(DBG>1)printf("(%d) I'm sending last user to 0\n",world_rank);
-                  #pragma omp critical (mpi_call)
-                  {
-                    MPI_Isend(payload2, size_vect2, MPI_CHAR, 0, TAG_NEXT_USER<<exec_num, MPI_COMM_WORLD,&req);
-                  }
+                  MPI_Isend(payload2, size_vect2, MPI_CHAR, 0, TAG_NEXT_USER, MPI_COMM_WORLD,&req);
                   reqflag = 0;
                   while(!reqflag && !end_stocker)
                   {
-                    #pragma omp critical (mpi_call)
-                    {
-                      MPI_Test(&req,&reqflag,&status);
-                    }
+                    MPI_Test(&req,&reqflag,&status);
                   }
                   if(!end_stocker)
                   {
@@ -694,17 +673,11 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
                 {
                   for (i=0;i<world_size;i++) // sending message to update x of userid1
                   {
-                    #pragma omp critical (mpi_call)
-                    {
-                      MPI_Isend(payload2, size_vect2, MPI_CHAR, i, TAG_NEXT_USER<<exec_num, MPI_COMM_WORLD,&req);
-                    }
+                    MPI_Isend(payload2, size_vect2, MPI_CHAR, i, TAG_NEXT_USER, MPI_COMM_WORLD,&req);
                     reqflag = 0;
                     while(!reqflag && !end_stocker)
                     {
-                      #pragma omp critical (mpi_call)
-                      {
-                        MPI_Test(&req,&reqflag,&status);
-                      }
+                      MPI_Test(&req,&reqflag,&status);
                     }
                   }
                   if(!end_stocker) // every message was sent
@@ -724,7 +697,6 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
               }
               else
               {
-
                 break;
               }
               /*
@@ -776,17 +748,11 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
         payload2_recv = malloc(payload2_size); // size of thread_num (int), userid (uint_16), b and xDist (mpz_t)
         while(!end_listener)
         {
-          #pragma omp critical (mpi_call)
-          {
-            MPI_Irecv(payload2_recv, payload2_size, MPI_CHAR, MPI_ANY_SOURCE, TAG_NEXT_USER<<exec_num, MPI_COMM_WORLD,&end_req);
-          }
+          MPI_Irecv(payload2_recv, payload2_size, MPI_CHAR, MPI_ANY_SOURCE, TAG_NEXT_USER, MPI_COMM_WORLD,&end_req);
           end_flag = 0;
           while(!end_flag && !end_listener)
           {
-            #pragma omp critical (mpi_call)
-            {
-              MPI_Test(&end_req,&end_flag,&end_status);
-            }
+            MPI_Test(&end_req,&end_flag,&end_status);
             //printf("ATTENTE THREAD STOP                                   \r");FF;
           }
 
@@ -814,7 +780,7 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
           mpz_set(x_res_local[userid1],x); // x_res_local[userid1] = x;
           userid1 ++;
           // useless critical ? only thread able to modify it
-          //#pragma omp critical (userid_uptodate)
+          #pragma omp critical (userid_uptodate)
           {
             userid_uptodate = userid1>userid_uptodate ? userid1 : userid_uptodate;
           }
@@ -833,10 +799,7 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
               if(DBG>1)printf("(%d) About to send last user to everybody...\n",world_rank);
               for (i=1;i<world_size;i++)
               {
-                #pragma omp critical (mpi_call)
-                {
-                  MPI_Send(payload2_recv,payload2_size,MPI_CHAR,i,TAG_NEXT_USER<<exec_num,MPI_COMM_WORLD);
-                }
+                MPI_Send(payload2_recv,payload2_size,MPI_CHAR,i,TAG_NEXT_USER,MPI_COMM_WORLD);
               }
               if(DBG>1)printf("(%d) Sent last user to everybody!\n",world_rank);
             }
@@ -872,61 +835,38 @@ long long int pcs_mu_run_shared_mem(int nb_threads, int world_rank,mpz_t x_res[_
         generate_random_b(b,nb_bits,r_state);
         double_and_add(&R, Q[userid1], b, E); // R = bQi
         trail_length = 0;
-
+        flagreq = 1;
         while(!end_searcher)
         {
           if(userid1==userid_uptodate && is_distinguished_mu(R, trailling_bits, &xDist)) // xDist = R.x >> trailling_bits
           {
-            //if(world_rank==1)printf("1");FF;
             mpz_fdiv_q_2exp(pfx,xDist,(mp_bitcnt_t)nb_bits-trailling_bits-prefix_size_max-1);
             pfx_int = (uint16_t)mpz_get_ui(pfx);
             machine_dest = machine_map[pfx_int];
             pfx_size = prefix_size_map[machine_dest];
             mpz_fdiv_r_2exp(xDist_no_pfx,xDist,nb_bits-trailling_bits-pfx_size-1);
-            payloads[thread_num-2] = pack(&size_vect, thread_num, userid1, b, xDist_no_pfx);
-            //if(world_rank==1)printf("2");FF;
-            if(end_searcher)break;
-            #pragma omp critical (mpi_call)
-            {
-              MPI_Isend(payloads[thread_num-2], size_vect, MPI_CHAR, machine_dest, TAG_XDIST<<exec_num, MPI_COMM_WORLD,&req);
-            }
-            //gmp_printf("Sent xDnp=%Zd to %d\n",xDist_no_pfx,machine_dest);
-            //if(world_rank==1)printf("3");FF;
-            userid1 = userid_uptodate;
-            if(userid_uptodate>=__NB_USERS__)break;
-            //if(world_rank==1)printf("4");FF;
-            generate_random_b(b,nb_bits,r_state);
-            //if(world_rank==1)printf("5");FF;
 
-            double_and_add(&R, Q[userid1], b, E); // new start, R = bQi
-            trail_length = 0;
-            //if(world_rank==1)printf("6");FF;
-            flagreq = 0;
-            //if(world_rank==1)printf("7");FF;
+
             while(!flagreq && !end_searcher) // while not sent and not finished
             {
-              #pragma omp critical (mpi_call)
-              {
-                MPI_Test(&req,&flagreq,MPI_STATUS_IGNORE);
-              }
+              MPI_Test(&req,&flagreq,MPI_STATUS_IGNORE);
+            }
+            if(end_searcher)break;
+            //else flagreq = 1 <=> prev msg has been sent
+            free(payloads[thread_num-2]);
+            payloads[thread_num-2] = pack(&size_vect, thread_num, userid1, b, xDist_no_pfx);
+            flagreq = 0;
 
-              //printf("ATTENTE ISEND THREAD %d                      \r",thread_num);FF;
-            }
-            //if(world_rank==1)printf("8");FF;
-            if(end_searcher)
-            {
-              break;
-              //if(world_rank==1)printf("9");FF;
-            }
-            else
-            {
-              free(payloads[thread_num-2]);
-              payloads[thread_num-2] = NULL;
-              // printf("(%d) free payload -\n",world_rank);
-              // free(payload); // tempo : mem leak in certain cases //testt0 PROBLEMATIC
-              // printf("(%d) free payload OK\n",world_rank);
-              //if(world_rank==1)printf("a");FF;
-            }
+            MPI_Isend(payloads[thread_num-2], size_vect, MPI_CHAR, machine_dest, TAG_XDIST, MPI_COMM_WORLD,&req);
+
+            userid1 = userid_uptodate;
+
+            generate_random_b(b,nb_bits,r_state);
+            double_and_add(&R, Q[userid1], b, E); // new start, R = bQi
+            trail_length = 0;
+            flagreq = 0;
+
+            if(end_searcher)break;
           }
           else if (userid1!=userid_uptodate) // R pas à jour
           {
@@ -1058,7 +998,7 @@ void pcs_mu_clear()
   free(prefix_map);
   free(prefix_size_map);
 
-  if(DBG)printf("(%d) fully cleared\n",world_rank);FF;
+  printf("(%d) fully cleared\n",world_rank);FF;
 }
 
 
